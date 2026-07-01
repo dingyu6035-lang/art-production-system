@@ -1,0 +1,21 @@
+{
+  "status": "not_ready",
+  "env": false,
+  "db": false,
+  "auth": false,
+  "storage": false,
+  "pages": {
+    "dashboard": true,
+    "tasks": true,
+    "kanban": true,
+    "upload": true,
+    "analytics": true,
+    "debug": true
+  },
+  "warnings": [
+    "缺少 Supabase 环境变量，请检查 .env.local 或 Vercel Environment Variables。",
+    "发现 console.log：scripts\\generate-deployment-report.mjs",
+    "发现疑似 mock data：scripts\\generate-deployment-report.mjs"
+  ],
+  "timestamp": "2026-07-01T15:54:45.725Z"
+}
