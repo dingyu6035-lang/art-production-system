@@ -1,0 +1,15 @@
+{
+  "version": "0.4.0",
+  "atlas": "/game-demo-assets/game-atlas.webp",
+  "renderer": "canvas-image-atlas",
+  "art_source": "conversation-generated asset sheet",
+  "categories": [
+    "backgrounds",
+    "player-animation",
+    "guard-animation",
+    "beast-animation",
+    "terrain",
+    "hud",
+    "combat-fx"
+  ]
+}
