@@ -104,15 +104,12 @@ export default function GameDemoClient() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<EngineApi | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [sceneName, setSceneName] = useState(SCENES[0].name);
+  const [sceneName, setSceneName] = useState<string>(SCENES[0].name);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
 
     const W = 960;
     const H = 540;
@@ -431,7 +428,7 @@ export default function GameDemoClient() {
         y: player.y + player.h / 2,
         life: 0.16,
         max: 0.16,
-        dir: -dir,
+        dir: (-dir) as 1 | -1,
         scale: 0.55,
       });
       if (player.hp <= 0) {
@@ -997,3 +994,7 @@ export default function GameDemoClient() {
             点击游戏画面后：A/D 移动 · W/Space 跳跃 · J 三段普攻 · L 重斩 · K 冲刺 · Q 剑气 · R 重开
           </div>
         </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {[
+            ["主角 Sprite", "待机 / 跑步 / 跳跃 / 三段攻击 / 冲刺 / 受击 / 死亡"],
