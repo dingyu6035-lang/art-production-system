@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>断界 · 横版动作格斗 Demo</title>
+<style>
+  *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#05090d;color:#e8f4f5;font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif}
+  body{background:radial-gradient(circle at 50% -10%,#112a35 0,#071018 35%,#04070a 80%);padding:20px}
+  .shell{max-width:1180px;margin:0 auto}.top{display:flex;gap:16px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px}
+  .eyebrow{font-size:11px;letter-spacing:.28em;color:#7ed9df99}.title{margin:5px 0 0;font-size:30px;font-weight:700}.sub{margin:8px 0 0;color:#8fa5ac;font-size:13px;max-width:760px;line-height:1.65}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #6ddde233;background:#07151dcc;color:#d8f7f7;border-radius:9px;padding:9px 14px;cursor:pointer;font-size:13px}.btn:hover{background:#0c2630}.btn.primary{border-color:#73edf466;background:#0b3940cc}
+  .stage{position:relative;border:1px solid #ffffff18;border-radius:14px;overflow:hidden;background:#000;box-shadow:0 20px 70px #001d2677}.stage canvas{display:block;width:100%;height:auto;aspect-ratio:16/9;outline:none}
+  .loading{position:absolute;inset:0;display:grid;place-items:center;background:#02070add;color:#aef7f5;font-size:13px}.hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:#02070a99;border:1px solid #ffffff12;border-radius:7px;padding:7px 11px;color:#dbe9eb;font-size:12px;white-space:nowrap;backdrop-filter:blur(5px)}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.card{border:1px solid #ffffff12;background:#071018cc;border-radius:11px;padding:13px}.card b{font-size:13px}.card p{font-size:12px;color:#82979d;line-height:1.55;margin:5px 0 0}
+  .mobile{display:none;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}.mobile button{min-height:44px;background:#08141b;color:#d8f5f5;border:1px solid #ffffff1c;border-radius:9px}
+  @media(max-width:760px){body{padding:10px}.title{font-size:22px}.cards{grid-template-columns:1fr 1fr}.hint{display:none}.mobile{display:grid}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <div>
+      <div class="eyebrow">BROKEN REALM · CLOUD DEMO</div>
+      <h1 class="title">横版动作格斗 Demo · 图像资源版</h1>
+      <p class="sub">角色、怪物、场景、地形、HUD 与战斗特效全部由云端图片图集驱动。当前版本用于验证高速近战、二段跳、冲刺、三段连击、剑气与敌人受击死亡反馈。</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="sceneBtn">场景：废都月夜</button>
+      <button class="btn" id="pauseBtn">暂停</button>
+      <button class="btn primary" id="resetBtn">重新开始</button>
+    </div>
+  </header>
+  <section class="stage">
+    <canvas id="game" width="960" height="540" tabindex="0" aria-label="横版动作格斗游戏"></canvas>
+    <div class="loading" id="loading">正在加载云端游戏图片资源…</div>
+    <div class="hint">点击画面后：A/D 移动 · W/Space 跳跃 · J 三段普攻 · L 重斩 · K 冲刺 · Q 剑气 · R 重开</div>
+  </section>
+  <div class="mobile">
+    <button data-touch="left">←</button><button data-touch="right">→</button><button data-touch="jump">跳</button><button data-touch="attack">斩</button><button data-touch="dash">冲</button>
+  </div>
+  <section class="cards">
+    <article class="card"><b>主角 Sprite</b><p>待机、跑步、跳跃、三段攻击、冲刺、受击、死亡均由图集帧切换。</p></article>
+    <article class="card"><b>怪物 Sprite</b><p>机械守卫与异化兽拥有追击、攻击前摇、攻击、受击和死亡状态。</p></article>
+    <article class="card"><b>场景图像</b><p>废都月夜、遗迹森林、古老圣殿、赤红终焉四套实图场景即时切换。</p></article>
+    <article class="card"><b>图像 HUD / FX</b><p>HUD、平台、剑气、命中闪光和冲刺残影均从图集调用。</p></article>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const canvas=document.getElementById('game');
+  const ctx=canvas.getContext('2d');
+  const loading=document.getElementById('loading');
+  const sceneBtn=document.getElementById('sceneBtn');
+  const pauseBtn=document.getElementById('pauseBtn');
+  const resetBtn=document.getElementById('resetBtn');
+  const W=960,H=540;
+  const ATLAS_URL='/game-demo-assets/game-atlas.webp';
+  const ATLAS={
+    bg_city:{x:0,y:0,w:640,h:360},bg_forest:{x:640,y:0,w:640,h:360},bg_temple:{x:0,y:360,w:640,h:360},bg_red:{x:640,y:360,w:640,h:360},
+    hud:{x:1280,y:0,w:245,h:145},portrait:{x:1280,y:155,w:216,h:210},
+    player_idle:{x:0,y:730,w:384,h:96},player_run:{x:396,y:730,w:384,h:96},player_jump:{x:792,y:730,w:384,h:96},player_attack1:{x:1188,y:730,w:384,h:96},player_attack2:{x:1584,y:730,w:384,h:96},
+    player_attack3:{x:0,y:838,w:384,h:96},player_dash:{x:396,y:838,w:384,h:96},player_hurt:{x:792,y:838,w:384,h:96},player_death:{x:1188,y:838,w:384,h:96},
+    guard_idle:{x:1584,y:838,w:448,h:112},guard_run:{x:0,y:962,w:448,h:112},guard_attack:{x:460,y:962,w:448,h:112},guard_hurt:{x:920,y:962,w:336,h:112},guard_death:{x:1268,y:962,w:448,h:112},
+    beast_idle:{x:0,y:1086,w:512,h:96},beast_run:{x:524,y:1086,w:512,h:96},beast_attack:{x:1048,y:1086,w:512,h:96},beast_hurt:{x:0,y:1194,w:512,h:96},beast_death:{x:524,y:1194,w:512,h:96},
+    platform:{x:1048,y:1194,w:320,h:110},fx_slash:{x:1380,y:1194,w:205,h:80},fx_hit:{x:1597,y:1194,w:130,h:110},fx_skill:{x:1739,y:1194,w:160,h:170}
+  };
+  const COUNTS={player:{idle:4,run:4,jump:4,attack1:4,attack2:4,attack3:4,dash:4,hurt:4,death:4},guard:{idle:4,run:4,attack:4,hurt:3,death:4},beast:{idle:4,run:4,attack:4,hurt:4,death:4}};
+  const SCENES=[['city','废都月夜'],['forest','遗迹森林'],['temple','古老圣殿'],['red','赤红终焉']];
+  const keys=new Set(),touch={left:false,right:false};
+  const platforms=[{x:0,y:468,w:960,h:72},{x:130,y:376,w:190,h:28},{x:410,y:322,w:165,h:28},{x:675,y:388,w:195,h:28}];
+  const attacks=[],projectiles=[],effects=[],ghosts=[];
+  let atlas=null,sceneIndex=0,paused=false,last=performance.now(),time=0,shake=0,hitStop=0,nextEnemyId=1,enemies=[];
+  const player={x:82,y:380,w:42,h:74,vx:0,vy:0,dir:1,hp:100,maxHp:100,onGround:false,jumps:0,state:'idle',stateTime:0,combo:0,comboTimer:0,attackLock:0,dashTime:0,dashCd:0,skillCd:0,inv:0,dead:false};
+
+  function setP(s){if(player.state!==s){player.state=s;player.stateTime=0}}
+  function setE(e,s){if(e.state!==s){e.state=s;e.stateTime=0}}
+  function spawnEnemy(type,x,y){const beast=type==='beast';return{id:nextEnemyId++,type,x,y,w:beast?72:48,h:beast?48:72,vx:0,vy:0,dir:-1,hp:beast?125:90,maxHp:beast?125:90,onGround:false,state:'idle',stateTime:0,attackCd:.5,windup:0,hitTime:0,deathTime:0,dead:false}}
+  function respawn(){nextEnemyId=1;enemies=[spawnEnemy('guard',520,396),spawnEnemy('beast',735,420),spawnEnemy('guard',850,396)]}
+  function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+  function ground(e,oldY){e.onGround=false;for(const p of platforms){if(e.x+e.w>p.x&&e.x<p.x+p.w&&e.vy>=0&&oldY+e.h<=p.y+10&&e.y+e.h>=p.y){e.y=p.y-e.h;e.vy=0;e.onGround=true;if(e===player)player.jumps=0}}}
+  function reset(){Object.assign(player,{x:82,y:380,vx:0,vy:0,dir:1,hp:100,onGround:false,jumps:0,state:'idle',stateTime:0,combo:0,comboTimer:0,attackLock:0,dashTime:0,dashCd:0,skillCd:0,inv:0,dead:false});attacks.length=projectiles.length=effects.length=ghosts.length=0;shake=0;hitStop=0;respawn();canvas.focus()}
+  function cycleScene(){sceneIndex=(sceneIndex+1)%SCENES.length;sceneBtn.textContent='场景：'+SCENES[sceneIndex][1];canvas.focus()}
+  function jump(){if(player.dead||player.attackLock>.28)return;if(player.onGround||player.jumps<2){player.vy=-610;player.onGround=false;player.jumps++;setP('jump')}}
+  function dash(){if(player.dead||player.dashCd>0)return;player.dashTime=.18;player.dashCd=.55;player.inv=Math.max(player.inv,.22);player.vy=0;player.vx=player.dir*820;player.attackLock=.16;setP('dash')}
+  function normalAttack(){if(player.dead||player.attackLock>0)return;if(!player.onGround){player.attackLock=.3;setP('attack2');attacks.push({owner:'player',x:player.dir>0?player.x+30:player.x-80,y:player.y+8,w:90,h:64,dir:player.dir,life:.13,damage:24,heavy:false,hit:new Set()});effects.push({kind:'slash',x:player.x+player.w/2,y:player.y+30,life:.16,max:.16,dir:player.dir,scale:.7});return}player.combo=player.comboTimer>0?(player.combo%3)+1:1;player.comboTimer=.48;const c=player.combo;player.attackLock=c===3?.34:.24;setP('attack'+c);const reach=c===3?116:84;attacks.push({owner:'player',x:player.dir>0?player.x+28:player.x-reach+10,y:player.y+8,w:reach,h:58,dir:player.dir,life:c===3?.16:.12,damage:c===3?32:18,heavy:c===3,hit:new Set()});effects.push({kind:'slash',x:player.x+player.w/2+player.dir*30,y:player.y+30,life:c===3?.2:.14,max:c===3?.2:.14,dir:player.dir,scale:c===3?1.15:.75});player.vx+=player.dir*(c===3?110:45)}
+  function heavy(){if(player.dead||player.attackLock>0||!player.onGround)return;player.combo=0;player.attackLock=.5;setP('attack3');const reach=138;attacks.push({owner:'player',x:player.dir>0?player.x+26:player.x-reach+10,y:player.y-4,w:reach,h:72,dir:player.dir,life:.2,damage:46,heavy:true,hit:new Set()});effects.push({kind:'slash',x:player.x+player.w/2+player.dir*40,y:player.y+25,life:.24,max:.24,dir:player.dir,scale:1.45});player.vx+=player.dir*130}
+  function skill(){if(player.dead||player.skillCd>0||player.attackLock>0)return;player.skillCd=1.25;player.attackLock=.28;setP('attack2');projectiles.push({x:player.dir>0?player.x+38:player.x-70,y:player.y+22,w:76,h:34,vx:player.dir*660,dir:player.dir,life:1.25,damage:28,hit:new Set()})}
+  function hurtP(amount,dir){if(player.inv>0||player.dead)return;player.hp-=amount;player.inv=.72;player.attackLock=.3;player.vx=dir*290;player.vy=-260;setP('hurt');shake=10;hitStop=.05;effects.push({kind:'hit',x:player.x+player.w/2,y:player.y+player.h/2,life:.16,max:.16,dir:-dir,scale:.55});if(player.hp<=0){player.hp=0;player.dead=true;setP('death')}}
+  function hurtE(e,amount,dir,isHeavy){if(e.dead)return;e.hp-=amount;e.hitTime=isHeavy?.25:.17;e.vx+=dir*(isHeavy?530:330);e.vy=-150;setE(e,'hurt');shake=isHeavy?12:6;hitStop=isHeavy?.07:.035;effects.push({kind:'hit',x:e.x+e.w/2,y:e.y+e.h/2,life:.17,max:.17,dir,scale:isHeavy?.8:.55});if(e.hp<=0){e.hp=0;e.dead=true;e.deathTime=.7;setE(e,'death')}}
+  function updatePlayer(dt){player.stateTime+=dt;player.inv=Math.max(0,player.inv-dt);player.attackLock=Math.max(0,player.attackLock-dt);player.comboTimer=Math.max(0,player.comboTimer-dt);player.dashTime=Math.max(0,player.dashTime-dt);player.dashCd=Math.max(0,player.dashCd-dt);player.skillCd=Math.max(0,player.skillCd-dt);if(player.comboTimer<=0)player.combo=0;if(player.dead){player.vy+=1500*dt;const oy=player.y;player.y+=player.vy*dt;ground(player,oy);return}const left=keys.has('a')||keys.has('arrowleft')||touch.left,right=keys.has('d')||keys.has('arrowright')||touch.right,m=(right?1:0)-(left?1:0);if(player.dashTime>0){player.vy=0;ghosts.push({x:player.x,y:player.y,dir:player.dir,life:.18,max:.18})}else{if(player.attackLock<=.1){const target=m*330;player.vx+=(target-player.vx)*Math.min(1,dt*12);if(m)player.dir=m>0?1:-1}else player.vx*=Math.max(.9,1-dt*3);player.vy+=1600*dt}const oy=player.y;player.x+=player.vx*dt;player.y+=player.vy*dt;player.x=Math.max(0,Math.min(W-player.w,player.x));ground(player,oy);if(player.attackLock<=0&&player.dashTime<=0){if(!player.onGround)setP('jump');else if(Math.abs(player.vx)>45)setP('run');else setP('idle')}if(player.y>H+100)hurtP(999,1)}
+  function updateEnemies(dt){for(const e of enemies){e.stateTime+=dt;e.attackCd=Math.max(0,e.attackCd-dt);e.windup=Math.max(0,e.windup-dt);e.hitTime=Math.max(0,e.hitTime-dt);if(e.dead){e.deathTime=Math.max(0,e.deathTime-dt);continue}const dx=player.x+player.w/2-(e.x+e.w/2),dist=Math.abs(dx);e.dir=dx>=0?1:-1;if(e.state==='windup'){e.vx*=.78;if(e.windup<=0){setE(e,'attack');e.attackCd=e.type==='beast'?1.25:1.05;const reach=e.type==='beast'?96:70;attacks.push({owner:e.id,x:e.dir>0?e.x+e.w-4:e.x-reach+4,y:e.y+5,w:reach,h:e.h-8,dir:e.dir,life:.15,damage:e.type==='beast'?21:15,heavy:e.type==='beast',hit:new Set()})}}else if(e.hitTime<=0&&e.state!=='attack'){const reach=e.type==='beast'?100:76;if(dist<reach&&e.attackCd<=0){setE(e,'windup');e.windup=e.type==='beast'?.42:.34}else if(dist<440&&dist>reach){setE(e,'run');const speed=e.type==='beast'?150:104;e.vx+=(e.dir*speed-e.vx)*Math.min(1,dt*5)}else{setE(e,'idle');e.vx*=Math.max(0,1-dt*6)}}if(e.state==='attack'&&e.stateTime>.33)setE(e,'idle');e.vy+=1500*dt;const oy=e.y;e.x+=e.vx*dt;e.y+=e.vy*dt;e.x=Math.max(0,Math.min(W-e.w,e.x));ground(e,oy)}}
+  function combat(dt){for(const b of attacks){b.life-=dt;if(b.owner==='player'){for(const e of enemies){if(!e.dead&&!b.hit.has(e.id)&&overlap(b,e)){b.hit.add(e.id);hurtE(e,b.damage,b.dir,b.heavy)}}}else if(!b.hit.has('player')&&!player.dead&&overlap(b,player)){b.hit.add('player');hurtP(b.damage,b.dir)}}for(let i=attacks.length-1;i>=0;i--)if(attacks[i].life<=0)attacks.splice(i,1);for(const p of projectiles){p.life-=dt;p.x+=p.vx*dt;for(const e of enemies){if(!e.dead&&!p.hit.has(e.id)&&overlap(p,e)){p.hit.add(e.id);hurtE(e,p.damage,p.dir,false)}}}for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];if(p.life<=0||p.x<-120||p.x>W+120)projectiles.splice(i,1)}}
+  function updateFx(dt){for(const f of effects)f.life-=dt;for(let i=effects.length-1;i>=0;i--)if(effects[i].life<=0)effects.splice(i,1);for(const g of ghosts)g.life-=dt;for(let i=ghosts.length-1;i>=0;i--)if(ghosts[i].life<=0)ghosts.splice(i,1)}
+  function update(dt){if(hitStop>0){hitStop-=dt;updateFx(dt*.25);return}time+=dt;updatePlayer(dt);updateEnemies(dt);combat(dt);updateFx(dt)}
+  function region(key,x,y,w,h,flip=false,alpha=1){if(!atlas)return;const r=ATLAS[key];ctx.save();ctx.globalAlpha=alpha;if(flip){ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(atlas,r.x,r.y,r.w,r.h,0,0,w,h)}else ctx.drawImage(atlas,r.x,r.y,r.w,r.h,x,y,w,h);ctx.restore()}
+  function strip(key,count,frame,x,y,w,h,flip=false,alpha=1){if(!atlas)return;const r=ATLAS[key],fw=r.w/count,sx=r.x+(Math.floor(frame%count)*fw);ctx.save();ctx.globalAlpha=alpha;if(flip){ctx.translate(x+w,y);ctx.scale(-1,1);ctx.drawImage(atlas,sx,r.y,fw,r.h,0,0,w,h)}else ctx.drawImage(atlas,sx,r.y,fw,r.h,x,y,w,h);ctx.restore()}
+  function visualP(){if(['run','jump','dash','attack1','attack2','attack3','hurt','death'].includes(player.state))return player.state;return'idle'}
+  function drawBg(){region('bg_'+SCENES[sceneIndex][0],0,0,W,H);const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'rgba(0,0,0,.06)');g.addColorStop(.62,'rgba(0,0,0,.05)');g.addColorStop(1,'rgba(0,0,0,.42)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H)}
+  function drawPlatforms(){for(const p of platforms)region('platform',p.x,p.y-24,p.w,Math.max(60,p.h+45),false,.98)}
+  function drawPlayer(){const v=visualP(),key='player_'+v,count=COUNTS.player[v],speed=v.startsWith('attack')?15:v==='run'?12:8,frame=Math.floor(player.stateTime*speed),dw=v.startsWith('attack')||v==='dash'?132:110,dh=110,dx=player.x+player.w/2-dw/2,dy=player.y+player.h-dh+12;for(const g of ghosts)strip('player_dash',4,Math.floor(time*16),g.x-36,g.y-20,116,110,g.dir<0,Math.max(0,g.life/g.max*.28));const blink=player.inv>0&&Math.floor(time*22)%2===0;if(!blink||player.dead)strip(key,count,frame,dx,dy,dw,dh,player.dir<0,1)}
+  function drawEnemy(e){if(e.dead&&e.deathTime<=0)return;let state=e.state==='windup'?'idle':e.state;if(!['idle','run','attack','hurt','death'].includes(state))state='idle';const key=e.type+'_'+state,count=COUNTS[e.type][state]||4,speed=state==='attack'?13:state==='run'?11:8,frame=Math.floor(e.stateTime*speed),dw=e.type==='beast'?142:120,dh=e.type==='beast'?105:120,dx=e.x+e.w/2-dw/2,dy=e.y+e.h-dh+12,alpha=e.dead?Math.max(0,e.deathTime/.7):1;strip(key,count,frame,dx,dy,dw,dh,e.dir<0,alpha);if(!e.dead){const bw=e.type==='beast'?70:54,bx=e.x+e.w/2-bw/2;ctx.fillStyle='rgba(6,8,12,.75)';ctx.fillRect(bx,e.y-11,bw,5);ctx.fillStyle=e.type==='beast'?'#ff6a4c':'#da574d';ctx.fillRect(bx,e.y-11,bw*(e.hp/e.maxHp),5)}if(e.state==='windup'){ctx.save();ctx.globalAlpha=.7+Math.sin(time*24)*.2;ctx.strokeStyle='#ff765e';ctx.lineWidth=2;ctx.beginPath();ctx.arc(e.x+e.w/2,e.y+e.h/2,24,0,Math.PI*2);ctx.stroke();ctx.restore()}}
+  function drawFx(){for(const f of effects){const a=Math.max(0,f.life/f.max),key='fx_'+f.kind,base=f.kind==='hit'?86:f.kind==='skill'?105:150,w=base*f.scale,h=base*.55*f.scale;region(key,f.x-w/2,f.y-h/2,w,h,f.dir<0,a)}for(const p of projectiles)region('fx_slash',p.x+p.w/2-52,p.y+p.h/2-22,105,45,p.dir<0,Math.min(1,p.life*2))}
+  function drawHud(){region('hud',16,14,260,154,false,.96);ctx.fillStyle='rgba(5,10,14,.82)';ctx.fillRect(73,52,150,11);ctx.fillStyle='#72e2df';ctx.fillRect(73,52,150*(player.hp/player.maxHp),11);ctx.font='700 13px system-ui';ctx.fillStyle='#e7f4f5';ctx.fillText('HP '+player.hp+'/'+player.maxHp,73,80);ctx.font='12px system-ui';ctx.fillStyle=player.skillCd<=0?'#8df7ef':'#9caeb3';ctx.fillText(player.skillCd<=0?'Q 剑气 READY':'Q 剑气 '+player.skillCd.toFixed(1)+'s',73,99);ctx.fillStyle='rgba(4,8,12,.64)';ctx.fillRect(W-176,18,158,48);ctx.fillStyle='#edf7f7';ctx.font='700 14px system-ui';ctx.fillText(SCENES[sceneIndex][1],W-160,39);ctx.fillStyle='#a9bec3';ctx.font='12px system-ui';ctx.fillText('敌人 '+enemies.filter(e=>!e.dead).length,W-160,57)}
+  function draw(){ctx.clearRect(0,0,W,H);const sx=shake>0?(Math.random()-.5)*shake:0,sy=shake>0?(Math.random()-.5)*shake:0;shake*=.82;ctx.save();ctx.translate(sx,sy);drawBg();drawPlatforms();for(const e of enemies)drawEnemy(e);drawPlayer();drawFx();drawHud();ctx.restore()}
+  function frame(now){const dt=Math.min(.033,(now-last)/1000);last=now;if(!paused)update(dt);draw();requestAnimationFrame(frame)}
+  function keyDown(e){const k=e.key.toLowerCase();keys.add(k);if([' ','arrowleft','arrowright','arrowup'].includes(k))e.preventDefault();if((k==='w'||k===' '||k==='arrowup')&&!e.repeat)jump();if(k==='j'&&!e.repeat)normalAttack();if(k==='l'&&!e.repeat)heavy();if(k==='k'&&!e.repeat)dash();if(k==='q'&&!e.repeat)skill();if(k==='r'&&!e.repeat)reset()}
+  function keyUp(e){keys.delete(e.key.toLowerCase())}
+  canvas.addEventListener('keydown',keyDown);canvas.addEventListener('keyup',keyUp);canvas.addEventListener('pointerdown',()=>canvas.focus());
+  sceneBtn.addEventListener('click',cycleScene);pauseBtn.addEventListener('click',()=>{paused=!paused;pauseBtn.textContent=paused?'继续':'暂停';canvas.focus()});resetBtn.addEventListener('click',reset);
+  for(const b of document.querySelectorAll('[data-touch]')){const a=b.dataset.touch;const down=e=>{e.preventDefault();canvas.focus();if(a==='left'||a==='right')touch[a]=true;else if(a==='jump')jump();else if(a==='attack')normalAttack();else if(a==='dash')dash()};const up=()=>{if(a==='left'||a==='right')touch[a]=false};b.addEventListener('pointerdown',down);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)}
+  const image=new Image();image.onload=()=>{atlas=image;loading.style.display='none';reset();last=performance.now();requestAnimationFrame(frame)};image.onerror=()=>{loading.textContent='图片图集加载失败，请刷新页面重试';loading.style.color='#ff8d7d'};image.src=ATLAS_URL;
+})();
+</script>
+</body>
+</html>
